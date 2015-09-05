@@ -1,0 +1,9 @@
+---
+# vars file for tinc
+net_name: netname
+server_name: '{{groups["vps"] | first}}'
+server_dir: /etc/tinc
+client_name: '{{inventory_hostname}}'
+client_address: '10.0.0.{{ansible_eth0.ipv4.address.split(".") | last}}'
+client_netmask: 255.255.255.0
+client_network: 192.168.1.0/24

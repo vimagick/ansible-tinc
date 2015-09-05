@@ -1,0 +1,11 @@
+---
+# handlers file for tinc
+- name: restart iptables
+  service:
+    name: iptables
+    state: restarted
+
+- name: restart tinc
+  service:
+    name: tincd@{{net_name}}
+    state: restarted

@@ -1,0 +1,106 @@
+---
+# tasks file for tinc
+- fail: msg='only support Archlinux'
+  when: 'ansible_os_family != "Archlinux"'
+
+- name: 'fetch {{server_name}}'
+  fetch:
+    src: '{{server_dir}}/{{net_name}}/hosts/{{server_name}}'
+    dest: './hosts/{{server_name}}'
+    flat: yes
+  delegate_to: '{{server_name}}'
+
+- name: 'install tinc'
+  pacman:
+    name: tinc
+    state: present
+
+- name: 'make directories'
+  file:
+    path: /etc/tinc/{{net_name}}/hosts
+    state: directory
+
+- name: 'copy tinc.conf'
+  template:
+    src: tinc.conf.j2
+    dest: /etc/tinc/{{net_name}}/tinc.conf
+
+- name: 'copy tinc-up'
+  template:
+    src: tinc-up.j2
+    dest: /etc/tinc/{{net_name}}/tinc-up
+    mode: '0755'
+
+- name: 'copy tinc-down'
+  template:
+    src: tinc-down.j2
+    dest: /etc/tinc/{{net_name}}/tinc-down
+    mode: '0755'
+
+- name: 'copy {{server_name}}'
+  copy:
+    src: ./hosts/{{server_name}}
+    dest: /etc/tinc/{{net_name}}/hosts/{{server_name}}
+
+- name: 'copy {{server_name}}-up'
+  template:
+    src: server-up.j2
+    dest: /etc/tinc/{{net_name}}/hosts/{{server_name}}-up
+    mode: '0755'
+
+- name: 'copy {{server_name}}-down'
+  template:
+    src: server-down.j2
+    dest: /etc/tinc/{{net_name}}/hosts/{{server_name}}-down
+    mode: '0755'
+
+- name: 'generate keys'
+  shell: tincd -n {{net_name}} -K < /dev/null
+  args:
+    creates: /etc/tinc/{{net_name}}/rsa_key.priv
+  notify:
+    - restart tinc
+
+- name: 'modify {{client_name}}'
+  lineinfile:
+    line: 'subnet = {{client_address}}'
+    insertbefore: BOF
+    dest: /etc/tinc/{{net_name}}/hosts/{{client_name}}
+    state: present
+
+- name: 'fetch {{client_name}}'
+  fetch:
+    src: /etc/tinc/{{net_name}}/hosts/{{client_name}}
+    dest: ./hosts/{{client_name}}
+    flat: yes
+
+- name: 'copy {{client_name}}'
+  copy:
+    src: './hosts/{{client_name}}'
+    dest: '{{server_dir}}/{{net_name}}/hosts/{{client_name}}'
+  delegate_to: '{{server_name}}'
+
+- name: 'enable ip forward'
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+
+- name: 'copy iptables.rules'
+  template:
+    src: iptables.rules.j2
+    dest: /etc/iptables/iptables.rules
+  notify:
+    - restart iptables
+
+- name: 'enable iptables service'
+  service:
+    name: iptables
+    enabled: yes
+    state: started
+
+- name: 'enable tinc service'
+  service:
+    name: tincd@{{net_name}}
+    enabled: yes
+    state: started
